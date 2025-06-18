@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notification Alert System</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f5f5f5;
+            padding: 20px;
+        }
+
+        .demo-container {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            width: 100%;
+            max-width: 600px;
+            background-color: white;
+            padding: 32px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            margin-bottom: 24px;
+            color: #333;
+            text-align: center;
+        }
+
+        .buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 32px;
+            justify-content: center;
+        }
+
+        button {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, opacity 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+        }
+
+        button:active {
+            transform: translateY(0);
+            opacity: 0.8;
+        }
+
+        .btn-success {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        .btn-error {
+            background-color: #F44336;
+            color: white;
+        }
+
+        .btn-warning {
+            background-color: #FFC107;
+            color: #333;
+        }
+
+        .btn-info {
+            background-color: #2196F3;
+            color: white;
+        }
+
+        #notifications-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 320px;
+            max-width: calc(100vw - 40px);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .notification {
+            display: flex;
+            padding: 16px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            margin-bottom: 10px;
+            animation: slideIn 0.5s ease forwards;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .notification.hiding {
+            opacity: 0;
+            transform: translateX(30px);
+        }
+
+        .notification-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 14px;
+            font-size: 24px;
+        }
+
+        .notification-content {
+            flex: 1;
+        }
+
+        .notification-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+            font-size: 16px;
+        }
+
+        .notification-message {
+            font-size: 14px;
+            opacity: 0.9;
+            line-height: 1.4;
+        }
+
+        .notification-close {
+            background: none;
+            border: none;
+            font-size: 18px;
+            cursor: pointer;
+            opacity: 0.7;
+            padding: 0;
+            margin-left: 12px;
+            transition: opacity 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 24px;
+            width: 24px;
+            border-radius: 50%;
+        }
+
+        .notification-close:hover {
+            opacity: 1;
+            transform: none;
+        }
+
+        .notification-progress {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            height: 3px;
+            width: 100%;
+            transform: scaleX(0);
+            transform-origin: left;
+            animation: progress 5s linear forwards;
+        }
+
+        .success {
+            background-color: #E8F5E9;
+            color: #2E7D32;
+            border-left: 4px solid #4CAF50;
+        }
+
+        .success .notification-progress {
+            background-color: #4CAF50;
+        }
+
+        .error {
+            background-color: #FFEBEE;
+            color: #C62828;
+            border-left: 4px solid #F44336;
+        }
+
+        .error .notification-progress {
+            background-color: #F44336;
+        }
+
+        .warning {
+            background-color: #FFF8E1;
+            color: #F57F17;
+            border-left: 4px solid #FFC107;
+        }
+
+        .warning .notification-progress {
+            background-color: #FFC107;
+        }
+
+        .info {
+            background-color: #E3F2FD;
+            color: #1565C0;
+            border-left: 4px solid #2196F3;
+        }
+
+        .info .notification-progress {
+            background-color: #2196F3;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes progress {
+            from {
+                transform: scaleX(1);
+            }
+            to {
+                transform: scaleX(0);
+            }
+        }
+
+        .settings {
+            margin-top: 20px;
+            padding: 20px;
+            background-color: #f9f9f9;
+            border-radius: 8px;
+        }
+
+        .settings-title {
+            font-size: 18px;
+            margin-bottom: 16px;
+            color: #333;
+        }
+
+        .settings-option {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .settings-option label {
+            margin-right: 10px;
+            min-width: 120px;
+        }
+
+        .settings-option input, .settings-option select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        input[type="number"] {
+            width: 80px;
+        }
+
+        select {
+            width: 160px;
+        }
+
+        .custom-message {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .custom-message textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            resize: vertical;
+            min-height: 80px;
+            font-family: inherit;
+        }
+    </style>
+</head>
+<body>
+    <div class="demo-container">
+        <h1>Notification Alert System</h1>
+        
+        <div class="buttons">
+            <button class="btn-success" onclick="showNotification('success')">Success</button>
+            <button class="btn-error" onclick="showNotification('error')">Error</button>
+            <button class="btn-warning" onclick="showNotification('warning')">Warning</button>
+            <button class="btn-info" onclick="showNotification('info')">Info</button>
+        </div>
+
+        <div class="settings">
+            <h2 class="settings-title">Notification Settings</h2>
+            
+            <div class="settings-option">
+                <label for="duration">Duration (ms):</label>
+                <input type="number" id="duration" min="1000" max="10000" step="500" value="5000">
+            </div>
+            
+            <div class="settings-option">
+                <label for="position">Position:</label>
+                <select id="position">
+                    <option value="top-right">Top Right</option>
+                    <option value="top-left">Top Left</option>
+                    <option value="bottom-right">Bottom Right</option>
+                    <option value="bottom-left">Bottom Left</option>
+                </select>
+            </div>
+
+            <div class="custom-message">
+                <label for="custom-text">Custom Message:</label>
+                <textarea id="custom-text" placeholder="Enter your custom notification message here...">This is a notification message!</textarea>
+            </div>
+        </div>
+        
+        <!-- Notifications will be appended here -->
+        <div id="notifications-container"></div>
+    </div>
+
+    <script>
+        // Default notification messages
+        const defaultMessages = {
+            success: {
+                title: "Success!",
+                message: "The operation was completed successfully."
+            },
+            error: {
+                title: "Error!",
+                message: "An error occurred. Please try again."
+            },
+            warning: {
+                title: "Warning!",
+                message: "Please proceed with caution."
+            },
+            info: {
+                title: "Information",
+                message: "Here's something you should know."
+            }
+        };
+
+        // Icons for each notification type
+        const icons = {
+            success: "✓",
+            error: "✕",
+            warning: "!",
+            info: "ℹ"
+        };
+
+        // Counter to generate unique IDs
+        let notificationCounter = 0;
+        
+        // Store active notification timeouts
+        const activeTimeouts = {};
+
+        function showNotification(type) {
+            const customMessage = document.getElementById('custom-text').value.trim();
+            const duration = parseInt(document.getElementById('duration').value);
+            const position = document.getElementById('position').value;
+            
+            // Update container position based on settings
+            updateContainerPosition(position);
+            
+            // Create notification
+            const id = 'notification-' + notificationCounter++;
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.id = id;
+            
+            // Create notification content
+            notification.innerHTML = `
+                <div class="notification-icon">${icons[type]}</div>
+                <div class="notification-content">
+                    <div class="notification-title">${defaultMessages[type].title}</div>
+                    <div class="notification-message">${customMessage || defaultMessages[type].message}</div>
+                </div>
+                <button class="notification-close" onclick="removeNotification('${id}')">×</button>
+                <div class="notification-progress"></div>
+            `;
+            
+            // Add to container
+            const container = document.getElementById('notifications-container');
+            container.appendChild(notification);
+            
+            // Set timeout for auto-removal
+            activeTimeouts[id] = setTimeout(() => {
+                removeNotification(id);
+            }, duration);
+            
+            // Reset progress animation duration based on settings
+            const progressBar = notification.querySelector('.notification-progress');
+            progressBar.style.animation = `progress ${duration/1000}s linear forwards`;
+        }
+
+        function removeNotification(id) {
+            const notification = document.getElementById(id);
+            if (!notification) return;
+            
+            // Clear any pending timeout
+            if (activeTimeouts[id]) {
+                clearTimeout(activeTimeouts[id]);
+                delete activeTimeouts[id];
+            }
+            
+            // Add hiding class for animation
+            notification.classList.add('hiding');
+            
+            // Remove after animation completes
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 300);
+        }
+
+        function updateContainerPosition(position) {
+            const container = document.getElementById('notifications-container');
+            
+            // Reset all positioning
+            container.style.top = null;
+            container.style.right = null;
+            container.style.bottom = null;
+            container.style.left = null;
+            
+            // Set new position
+            switch (position) {
+                case 'top-right':
+                    container.style.top = '20px';
+                    container.style.right = '20px';
+                    break;
+                case 'top-left':
+                    container.style.top = '20px';
+                    container.style.left = '20px';
+                    break;
+                case 'bottom-right':
+                    container.style.bottom = '20px';
+                    container.style.right = '20px';
+                    break;
+                case 'bottom-left':
+                    container.style.bottom = '20px';
+                    container.style.left = '20px';
+                    break;
+            }
+        }
+
+        // Set initial position
+        updateContainerPosition('top-right');
+    </script>
+</body>
+</html>

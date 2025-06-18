@@ -1,0 +1,9 @@
+venv/
+instance/
+extractDir/
+Uploads/
+my_rag_chunks/
+results/
+fine_tuned_model/
+Dataset/
+Backup/

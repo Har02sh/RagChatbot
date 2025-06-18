@@ -1,0 +1,671 @@
+// Global state
+let currentChatId = null;
+let uploadedFile = null;
+let uploadedPdfId = null;
+let chatHistory = [];
+let isUploading = false;
+let isSending = false;
+let fileName = null; // Default file name
+let currentCollectionName = null;
+
+// DOM elements
+const sidebar = document.getElementById("sidebar");
+const mobileMenuBtn = document.getElementById("mobileMenuBtn");
+const sidebarOverlay = document.getElementById("sidebarOverlay");
+const newChatBtn = document.getElementById("newChatBtn");
+const themeToggle = document.getElementById("themeToggle");
+const uploadArea = document.getElementById("uploadArea");
+const uploadBox = document.getElementById("uploadBox");
+const uploadBtn = document.getElementById("uploadBtn");
+const fileInput = document.getElementById("fileInput");
+const uploadStatus = document.getElementById("uploadStatus");
+const uploadSpinner = document.getElementById("uploadSpinner");
+const uploadBtnText = document.getElementById("uploadBtnText");
+const chatMessages = document.getElementById("chatMessages");
+const chatInputContainer = document.getElementById("chatInputContainer");
+const chatForm = document.getElementById("chatForm");
+const chatInput = document.getElementById("chatInput");
+const sendBtn = document.getElementById("sendBtn");
+const sendIcon = document.getElementById("sendIcon");
+const welcomeTime = document.getElementById("welcomeTime");
+const headerProfile = document.querySelector(".header-profile");
+const headerDropdown = document.getElementById("headerDropdown");
+const headerLogoutBtn = document.getElementById("headerLogoutBtn");
+const progressBar = document.getElementById("uploadProgress");
+
+headerProfile.addEventListener("click", (e) => {
+  e.stopPropagation();
+  headerProfile.classList.toggle("open");
+  headerProfile.querySelector("svg").style.rotate =
+    headerProfile.classList.contains("open") ? "90deg" : "0deg";
+});
+
+document.addEventListener("click", () => {
+  headerProfile.classList.remove("open");
+});
+
+headerLogoutBtn.addEventListener("click", logout);
+
+// Initialize app
+function init() {
+  setupEventListeners();
+  loadChatHistory();
+  setWelcomeTime();
+
+  // Auto-resize textarea
+  chatInput.addEventListener("input", autoResizeTextarea);
+}
+
+function setupEventListeners() {
+  // Mobile menu
+  mobileMenuBtn.addEventListener("click", toggleSidebar);
+  sidebarOverlay.addEventListener("click", closeSidebar);
+
+  // New chat
+  newChatBtn.addEventListener("click", startNewChat);
+
+  // Theme toggle
+  themeToggle.addEventListener("click", toggleTheme);
+
+  // File upload
+  uploadBtn.addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", handleFileSelect);
+
+  // Drag and drop
+  uploadBox.addEventListener("dragover", handleDragOver);
+  uploadBox.addEventListener("dragleave", handleDragLeave);
+  uploadBox.addEventListener("drop", handleFileDrop);
+
+  // Chat form
+  chatForm.addEventListener("submit", handleChatSubmit);
+
+  // Enter key handling
+  chatInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      chatForm.dispatchEvent(new Event("submit"));
+    }
+  });
+}
+
+function toggleSidebar() {
+  sidebar.classList.toggle("open");
+  sidebarOverlay.classList.toggle("open");
+}
+
+function closeSidebar() {
+  sidebar.classList.remove("open");
+  sidebarOverlay.classList.remove("open");
+}
+
+function startNewChat() {
+  currentChatId = null;
+  uploadedFile = null;
+
+  // Reset UI
+  uploadArea.style.display = "flex";
+  chatMessages.classList.remove("active");
+  chatInputContainer.classList.remove("active");
+
+  // Reset upload box
+  uploadBox.classList.remove("success");
+  uploadStatus.style.display = "none";
+  uploadBtnText.textContent = "Choose PDF File";
+  uploadBtn.disabled = false;
+
+  // Clear messages
+  chatMessages.innerHTML = `
+                <div class="message ai">
+                    <div class="message-avatar">AI</div>
+                    <div class="message-content">
+                        <div>Hello! I've processed your PDF document. You can now ask me any questions about its content.</div>
+                        <div class="message-time">${formatTime(
+                          new Date()
+                        )}</div>
+                    </div>
+                </div>
+            `;
+
+  // Clear input
+  chatInput.value = "";
+
+  closeSidebar();
+}
+
+function toggleTheme() {
+  const currentTheme = document.documentElement.getAttribute("data-theme");
+  const newTheme = currentTheme === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", newTheme);
+  localStorage.setItem("theme", newTheme); // Save preference
+
+  const icon = themeToggle.querySelector("i");
+  const text = themeToggle.querySelector("i").nextSibling;
+
+  if (newTheme === "dark") {
+    icon.className = "fas fa-sun";
+    text.textContent = " Light Mode";
+  } else {
+    icon.className = "fas fa-moon";
+    text.textContent = " Dark Mode";
+  }
+}
+
+function logout() {
+  if (confirm("Are you sure you want to logout?")) {
+    fetch("/api/logout")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.redirect) {
+          window.location.href = data.redirect;
+        } else {
+          alert("Logout failed. Please try again.");
+        }
+      })
+      .catch(() => {
+        alert("Logout failed. Please try again.");
+      });
+  }
+}
+
+function handleDragOver(e) {
+  e.preventDefault();
+  uploadBox.classList.add("dragover");
+}
+
+function handleDragLeave(e) {
+  e.preventDefault();
+  uploadBox.classList.remove("dragover");
+}
+
+function handleFileDrop(e) {
+  e.preventDefault();
+  uploadBox.classList.remove("dragover");
+
+  const files = e.dataTransfer.files;
+  if (files.length > 0) {
+    handleFile(files[0]);
+  }
+}
+
+function handleFileSelect(e) {
+  const file = e.target.files[0];
+  if (file) {
+    handleFile(file);
+  }
+}
+
+function handleFile(file) {
+  if (file.type !== "application/pdf") {
+    showUploadStatus("Please select a PDF file.", "error");
+    return;
+  }
+
+  if (file.size > 10 * 1024 * 1024) {
+    // 10MB limit
+    showUploadStatus("File size must be less than 10MB.", "error");
+    return;
+  }
+
+  uploadFile(file);
+}
+
+async function uploadFile(file) {
+  if (isUploading) return;
+
+  isUploading = true;
+  uploadBtn.disabled = true;
+  uploadBtnText.textContent = "Uploading...";
+  uploadSpinner.style.display = "block";
+  uploadStatus.style.display = "none";
+  progressBar.style.display = "block";
+
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await fetch("/api/uploadPdf", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || "Upload failed");
+    }
+
+    const data = await response.json();
+
+    const taskId = data.task_id;
+
+    uploadedFile = file;
+    uploadedPdfId = data.pdf_id;
+    fileName = data.file_name || file.name;
+    currentCollectionName = data.collection_name || null;
+    console.log(currentCollectionName);
+    pollProgress(taskId);
+  } catch (error) {
+    showUploadStatus(
+      error.message || "Upload failed. Please try again.",
+      "error"
+    );
+    uploadBtn.disabled = false;
+    uploadBtnText.textContent = "Choose PDF File";
+  } finally {
+    isUploading = false;
+    uploadSpinner.style.display = "none";
+  }
+}
+
+function pollProgress(taskId) {
+  const interval = setInterval(() => {
+    fetch(`/progress?task_id=${taskId}`)
+      .then(res => res.json())
+      .then(data => {
+        console.log("Progress data:", data.progress);
+        progressBar.value = data.progress;
+
+        if (data.progress >= 100) {
+          clearInterval(interval);
+          showUploadStatus(`Successfully uploaded: ${fileName}`, "success");
+          setTimeout(() => {
+            // Move UI update here after progress is complete
+            uploadArea.style.display = "none";
+            chatMessages.classList.add("active");
+            chatInputContainer.classList.add("active");
+            chatInput.focus();
+
+            // Add to chat history
+            addToChatHistory(fileName);
+
+            // Enable upload button for future uploads if needed
+            uploadBtn.disabled = false;
+            uploadBtnText.textContent = "Choose PDF File";
+            progressBar.style.display = "none";
+          }, 1000);
+        }
+      })
+      .catch(() => {
+        // Optional: handle errors, maybe clear interval or show error
+        clearInterval(interval);
+      });
+  }, 1000); // Poll every 1 second
+}
+
+function showUploadStatus(message, type) {
+  uploadStatus.textContent = message;
+  uploadStatus.className = `upload-status ${type}`;
+  uploadStatus.style.display = "block";
+}
+
+async function handleChatSubmit(e) {
+  e.preventDefault();
+
+  const message = chatInput.value.trim();
+  if (!message || isSending) return;
+
+  // Add user message
+  addMessage(message, "user");
+  chatInput.value = "";
+  autoResizeTextarea({ target: chatInput });
+
+  // Show loading state
+  isSending = true;
+  sendBtn.disabled = true;
+  sendIcon.style.display = "none";
+
+  // Add typing indicator
+  const typingElement = addTypingIndicator();
+
+  try {
+    // Ensure chat exists
+    if (!currentChatId) {
+      if (!uploadedPdfId) throw new Error("No PDF uploaded");
+      const createRes = await fetch("/api/chats", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: fileName, pdf_id: uploadedPdfId }),
+      });
+      if (!createRes.ok) throw new Error("Failed to create chat");
+      const chatData = await createRes.json();
+      currentChatId = chatData.id;
+    }
+
+    // Send user message to backend
+    const res = await fetch(`/api/chats/${currentChatId}/messages`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: message, collection_name: currentCollectionName }),
+    });
+
+    typingElement.remove();
+
+    if (!res.ok) {
+      const errData = await res.json();
+      addMessage(
+        errData.message || "Sorry, I encountered an error. Please try again.",
+        "ai"
+      );
+      return;
+    }
+
+    const data = await res.json();
+    // Add AI response with typing effect
+    await addMessageWithTypingEffect(data.bot_message.text, "ai");
+  } catch (error) {
+    typingElement.remove();
+    addMessage("Sorry, I encountered an error. Please try again.", "ai");
+  } finally {
+    isSending = false;
+    sendBtn.disabled = false;
+    sendIcon.style.display = "block";
+    chatInput.focus();
+  }
+}
+
+function addMessage(content, type) {
+  const messageDiv = document.createElement("div");
+  messageDiv.className = `message ${type}`;
+
+  const avatar = document.createElement("div");
+  avatar.className = "message-avatar";
+  avatar.textContent = type === "user" ? "You" : "AI";
+
+  const messageContent = document.createElement("div");
+  messageContent.className = "message-content";
+
+  const messageText = document.createElement("div");
+  messageText.textContent = content;
+
+  const messageTime = document.createElement("div");
+  messageTime.className = "message-time";
+  messageTime.textContent = formatTime(new Date());
+
+  messageContent.appendChild(messageText);
+  messageContent.appendChild(messageTime);
+
+  messageDiv.appendChild(avatar);
+  messageDiv.appendChild(messageContent);
+
+  chatMessages.appendChild(messageDiv);
+  scrollToBottom();
+
+  return messageDiv;
+}
+
+function addTypingIndicator() {
+  const messageDiv = document.createElement("div");
+  messageDiv.className = "message ai";
+
+  const avatar = document.createElement("div");
+  avatar.className = "message-avatar";
+  avatar.textContent = "AI";
+
+  const messageContent = document.createElement("div");
+  messageContent.className = "message-content";
+
+  const typingIndicator = document.createElement("div");
+  typingIndicator.className = "typing-indicator";
+  typingIndicator.innerHTML = `
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+            `;
+
+  messageContent.appendChild(typingIndicator);
+  messageDiv.appendChild(avatar);
+  messageDiv.appendChild(messageContent);
+
+  chatMessages.appendChild(messageDiv);
+  scrollToBottom();
+
+  return messageDiv;
+}
+
+async function addMessageWithTypingEffect(content, type) {
+  const messageDiv = document.createElement("div");
+  messageDiv.className = `message ${type}`;
+
+  const avatar = document.createElement("div");
+  avatar.className = "message-avatar";
+  avatar.textContent = type === "user" ? "You" : "AI";
+
+  const messageContent = document.createElement("div");
+  messageContent.className = "message-content";
+
+  const messageText = document.createElement("div");
+  const messageTime = document.createElement("div");
+  messageTime.className = "message-time";
+  messageTime.textContent = formatTime(new Date());
+
+  messageContent.appendChild(messageText);
+  messageContent.appendChild(messageTime);
+  messageDiv.appendChild(avatar);
+  messageDiv.appendChild(messageContent);
+
+  chatMessages.appendChild(messageDiv);
+
+  // Typing effect
+  let i = 0;
+  const typingSpeed = 10;
+
+  return new Promise((resolve) => {
+    function typeWriter() {
+      if (i < content.length) {
+        messageText.textContent += content.charAt(i);
+        i++;
+        scrollToBottom();
+        setTimeout(typeWriter, typingSpeed);
+      } else {
+        resolve(messageDiv);
+      }
+    }
+    typeWriter();
+  });
+}
+
+function scrollToBottom() {
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function autoResizeTextarea(e) {
+  const textarea = e.target;
+  textarea.style.height = "auto";
+  textarea.style.height = Math.min(textarea.scrollHeight, 120) + "px";
+}
+
+function formatTime(date) {
+  return date.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function setWelcomeTime() {
+  welcomeTime.textContent = formatTime(new Date());
+}
+
+function addToChatHistory(fileName) {
+  const chatItem = {
+    id: Date.now(),
+    title: fileName,
+    timestamp: new Date(),
+    fileName: fileName,
+  };
+
+  chatHistory.unshift(chatItem);
+  renderChatHistory();
+}
+
+function renderChatHistory() {
+  const todayHistory = document.getElementById("todayHistory");
+  const yesterdayHistory = document.getElementById("yesterdayHistory");
+  const weekHistory = document.getElementById("weekHistory");
+
+  // Clear existing history
+  todayHistory.innerHTML = "";
+  yesterdayHistory.innerHTML = "";
+  weekHistory.innerHTML = "";
+
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
+  const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+  chatHistory.forEach((chat, idx) => {
+    const chatDate = new Date(
+      chat.timestamp.getFullYear(),
+      chat.timestamp.getMonth(),
+      chat.timestamp.getDate()
+    );
+
+    const historyItem = document.createElement("div");
+    historyItem.className = "history-item";
+    historyItem.style.display = "flex";
+    historyItem.style.alignItems = "center";
+    historyItem.style.justifyContent = "space-between";
+    historyItem.innerHTML = `
+              <div>
+                <div class="history-title">${chat.title}</div>
+                <div class="history-time">${formatTime(chat.timestamp)}</div>
+              </div>
+              <button class="delete-chat-btn" title="Delete chat">
+                <i class="fas fa-trash"></i>
+              </button>
+            `;
+
+    // Load chat on click (except when clicking delete)
+    historyItem.addEventListener("click", function (event) {
+      if (event.target.closest(".delete-chat-btn")) return;
+      loadChat(chat);
+    });
+
+    // Delete chat on delete button click
+    historyItem
+      .querySelector(".delete-chat-btn")
+      .addEventListener("click", function (event) {
+        event.stopPropagation();
+        if (confirm("Delete this chat history?")) {
+          // Call backend to delete
+          fetch(`/api/chats/${chat.id}`, { method: "DELETE" })
+            .then((res) => res.json())
+            .then((data) => {
+              if (data.success) {
+                chatHistory.splice(idx, 1);
+                renderChatHistory();
+              } else {
+                alert("Failed to delete chat.");
+              }
+            })
+            .catch(() => {
+              alert("Failed to delete chat.");
+            });
+        }
+      });
+
+    if (chatDate.getTime() === today.getTime()) {
+      todayHistory.appendChild(historyItem);
+    } else if (chatDate.getTime() === yesterday.getTime()) {
+      yesterdayHistory.appendChild(historyItem);
+    } else if (chatDate >= weekAgo) {
+      weekHistory.appendChild(historyItem);
+    }
+  });
+}
+
+function loadChat(chat) {
+  currentChatId = chat.id;
+
+  // Show chat interface
+  uploadArea.style.display = "none";
+  chatMessages.classList.add("active");
+  chatInputContainer.classList.add("active");
+
+  // Fetch messages from backend
+  fetch(`/api/chats/${chat.id}/messages`)
+    .then((res) => res.json())
+    .then((data) => {
+      chatMessages.innerHTML = "";
+      if (data.success && Array.isArray(data.messages)) {
+        data.messages.forEach((msg) => {
+          addMessage(msg.text, msg.sender === "user" ? "user" : "ai");
+        });
+      } else {
+        // Fallback welcome message
+        chatMessages.innerHTML = `
+                <div class="message ai">
+                  <div class="message-avatar">AI</div>
+                  <div class="message-content">
+                    <div>Welcome back! I have your PDF "${
+                      chat.fileName
+                    }" loaded and ready for questions.</div>
+                    <div class="message-time">${formatTime(new Date())}</div>
+                  </div>
+                </div>
+              `;
+      }
+    })
+    .catch(() => {
+      chatMessages.innerHTML = `
+              <div class="message ai">
+                <div class="message-avatar">AI</div>
+                <div class="message-content">
+                  <div>Welcome back! I have your PDF "${
+                    chat.fileName
+                  }" loaded and ready for questions.</div>
+                  <div class="message-time">${formatTime(new Date())}</div>
+                </div>
+              </div>
+            `;
+    });
+
+  // Mark as active
+  document.querySelectorAll(".history-item").forEach((item) => {
+    item.classList.remove("active");
+  });
+  // Find and mark the clicked item as active
+  setTimeout(() => {
+    document.querySelectorAll(".history-item")[0]?.classList.add("active");
+  }, 0);
+
+  closeSidebar();
+  chatInput.focus();
+}
+
+function loadChatHistory() {
+  // Fetch real chat history from backend API
+  fetch("/api/chats")
+    .then((res) => res.json())
+    .then((data) => {
+      if (data.success && Array.isArray(data.chats)) {
+        // Convert string timestamps to Date objects
+        chatHistory = data.chats.map((chat) => ({
+          ...chat,
+          timestamp: new Date(
+            new Date(chat.updated_at).getTime() + 5.5 * 60 * 60 * 1000
+          ), // Always use updated_at
+          fileName: chat.file_name || "PDF", // Always use file_name
+        }));
+        renderChatHistory();
+      } else {
+        chatHistory = [];
+        renderChatHistory();
+      }
+    })
+    .catch(() => {
+      chatHistory = [];
+      renderChatHistory();
+    });
+}
+
+// Initialize the app when DOM is loaded
+document.addEventListener("DOMContentLoaded", init);
+
+// Handle window resize
+window.addEventListener("resize", () => {
+  if (window.innerWidth > 768) {
+    closeSidebar();
+  }
+});
+
+// Prevent default drag behaviors on document
+document.addEventListener("dragover", (e) => e.preventDefault());
+document.addEventListener("drop", (e) => e.preventDefault());

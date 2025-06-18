@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI PDF Chat Assistant</title>
+    <script>
+    // Set theme before CSS loads to prevent flash
+    (function() {
+      try {
+        var theme = localStorage.getItem('theme');
+        if (theme) {
+          document.documentElement.setAttribute('data-theme', theme);
+        }
+      } catch(e){}
+    })();
+  </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+    <link rel="stylesheet" href="{{url_for('static', filename='css/main.css')}}" />
+
+    
+<script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.9.0/axios.min.js" integrity="sha512-FPlUpimug7gt7Hn7swE8N2pHw/+oQMq/+R/hH/2hZ43VOQ+Kjh25rQzuLyPz7aUWKlRpI7wXbY6+U3oFPGjPOA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  </head>
+  <body>
+    <div class="app-container">
+      <!-- Sidebar -->
+      <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+          <button class="new-chat-btn" id="newChatBtn">
+            <i class="fas fa-plus"></i>
+            New Chat
+          </button>
+        </div>
+
+        <div class="chat-history">
+          <div class="history-section">
+            <h3>Today</h3>
+            <div id="todayHistory"></div>
+          </div>
+          <div class="history-section">
+            <h3>Yesterday</h3>
+            <div id="yesterdayHistory"></div>
+          </div>
+          <div class="history-section">
+            <h3>Previous 7 Days</h3>
+            <div id="weekHistory"></div>
+          </div>
+        </div>
+
+        <div class="profile-section">
+          <div class="profile-info">
+            <div class="profile-avatar">
+              <img src="{{url_for('static', filename='images/avatar.png')}}" style="width: 100%;" alt="avatar">
+            </div>
+            <div class="profile-details">
+              <h4 id="userName">{{name}}</h4>
+              <p>{{email}}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Content -->
+      <div class="main-content">
+        <div class="main-header">
+          <button class="mobile-menu-btn" id="mobileMenuBtn">
+            <i class="fas fa-bars"></i>
+          </button>
+          <div class="header-title-group">
+            <i class="fas fa-file-alt header-logo"></i>
+            <h1 class="main-title">AI PDF Assistant</h1>
+          </div>
+          <div class="header-profile">
+            <div class="header-avatar" id="headerAvatar">
+               <i class="fas fa-cog"></i>
+            </div>
+            <div class="header-dropdown" id="headerDropdown">
+              <button id="headerProfileBtn">
+                <i class="fas fa-user"></i> Profile
+              </button>
+              <button class="theme-toggle" id="themeToggle">
+                <i class="fas fa-moon"></i>
+                Dark Mode
+              </button>
+              <button id="headerLogoutBtn">
+                <i class="fas fa-sign-out-alt"></i> Logout
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="chat-container">
+          <!-- Upload Area -->
+          <div class="upload-area" id="uploadArea">
+            <div class="upload-box" id="uploadBox">
+              <div class="upload-icon">
+                <i class="fas fa-file-pdf"></i>
+              </div>
+              <div class="upload-text">
+                <h3>Upload Your PDF Document</h3>
+                <p>Drag and drop your PDF file here, or click to browse</p>
+                <button class="upload-btn" id="uploadBtn">
+                  <span id="uploadBtnText">Choose PDF File</span>
+                  <div
+                    class="loading-spinner"
+                    id="uploadSpinner"
+                    style="display: none"
+                  ></div>
+                </button>
+                <input
+                  type="file"
+                  class="file-input"
+                  id="fileInput"
+                  accept=".pdf"
+                />
+              </div>
+              <progress id="uploadProgress" value="0" max="100" style="display: none;"></progress>
+              <div class="upload-status" id="uploadStatus"></div>
+            </div>
+          </div>
+
+          <!-- Chat Messages -->
+          <div class="chat-messages" id="chatMessages">
+            <div class="message ai">
+              <div class="message-avatar">AI</div>
+              <div class="message-content">
+                <div>
+                  Hello! I've processed your PDF document. You can now ask me
+                  any questions about its content.
+                </div>
+                <div class="message-time" id="welcomeTime"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chat Input -->
+        <div class="chat-input-container" id="chatInputContainer">
+          <form class="chat-input-form" id="chatForm">
+            <textarea
+              class="chat-input"
+              id="chatInput"
+              placeholder="Ask a question about your PDF..."
+              rows="1"
+            ></textarea>
+            <button type="submit" class="send-btn" id="sendBtn">
+              <i class="fas fa-paper-plane" id="sendIcon"></i>
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mobile Sidebar Overlay -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <script src="{{url_for('static', filename='js/main.js')}}"></script>
+  </body>
+</html>
